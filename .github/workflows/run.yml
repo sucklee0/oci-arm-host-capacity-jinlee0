@@ -1,21 +1,16 @@
-name: OCI Instance Provisioning-jinlee
+name: OCI Instance Provisioning
 
 on:
   workflow_dispatch:
   schedule:
-    - cron: '*/5 * * * *' # 5분마다 실행 (UTC 기준)
-    
+    - cron: '*/5 * * * *' # 5분마다 자동 실행
+
 jobs:
   run:
     runs-on: ubuntu-latest
-    env:
-      FORCE_JAVASCRIPT_ACTIONS_TO_NODE20: true
-
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-        with:
-          repository: hitrov/oci-arm-host-capacity
 
       - name: Setup PHP
         uses: shivammathur/setup-php@v2
@@ -25,8 +20,11 @@ jobs:
       - name: Install dependencies
         run: composer install --no-dev --prefer-dist --no-progress
 
+      # 💡 [버그 3 해결] PEM 키 파일 생성 후 안전하게 권한(chmod 600)을 부여합니다.
       - name: Create private key file
-        run: echo "${{ secrets.OCI_KEY_CONTENT }}" > oci_private_key.pem
+        run: |
+          echo "${{ secrets.OCI_KEY_CONTENT }}" > oci_private_key.pem
+          chmod 600 oci_private_key.pem
 
       - name: Run Provisioning Script
         id: run_script
@@ -34,8 +32,9 @@ jobs:
           OUTPUT=$(php index.php)
           echo "$OUTPUT"
           
-          # 'Instance OCID' 대신, 실제 생성 시에만 발급되는 고유 ID 포맷(ocid1.instance)을 검사합니다.
-          if [[ "$OUTPUT" == *"ocid1.instance"* ]]; then
+          # 1. 출력물에 확실한 에러/용량 부족 키워드가 포함되어 있는지 검사합니다.
+          # 2. 동시에 출력물에 'ocid1.instance'라는 진짜 식별자가 생성되었는지 이중 체크합니다.
+          if [[ "$OUTPUT" != *"Out of capacity"* ]] && [[ "$OUTPUT" != *"InternalError"* ]] && [[ "$OUTPUT" == *"ocid1.instance"* ]]; then
             echo "INSTANCE_CREATED=true" >> $GITHUB_OUTPUT
           else
             echo "INSTANCE_CREATED=false" >> $GITHUB_OUTPUT
@@ -54,6 +53,7 @@ jobs:
           OCI_SSH_PUBLIC_KEY: ${{ secrets.OCI_SSH_PUBLIC_KEY }}
 
       - name: Send Telegram Notification
+        # 이전 step에서 최종 판단한 결과가 정확히 'true'일 때만 실행합니다.
         if: steps.run_script.outputs.INSTANCE_CREATED == 'true'
         env:
           TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
@@ -61,4 +61,4 @@ jobs:
         run: |
           curl -s -X POST https://api.telegram.org/bot$TELEGRAM_TOKEN/sendMessage \
             -d chat_id=$TELEGRAM_CHAT_ID \
-            -d text="🎉 [성공] 오라클 ARM 서버(Jinlee)가 생성되었습니다!"
+            -d text="🎉 [오라클 클라우드] ARM 인스턴스가 진짜로 생성되었습니다! 콘솔을 확인하세요."
