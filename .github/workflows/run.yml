@@ -17,8 +17,6 @@ jobs:
         with:
           php-version: '8.3'
 
-      # 💡 [수정] composer json이 없으므로 무의미한 composer install 단계를 삭제했습니다.
-
       - name: Create private key file
         run: |
           echo "${{ secrets.OCI_KEY_CONTENT }}" > oci_private_key.pem
@@ -27,17 +25,21 @@ jobs:
       - name: Run Provisioning Script
         id: run_script
         run: |
-          # 💡 [핵심] 파일이 없으면 기존 레포지토리(sucklee0/oci-arm-host-capacity)의 최신 소스코드를 다운로드해서 압축을 풉니다.
+          # 1. 소스 코드가 없으면 원격에서 코드를 가져옵니다.
           if [ ! -f "index.php" ]; then
             echo "📦 기존 레포지토리에서 소스 코드를 원격으로 가져옵니다..."
             curl -L https://github.com/sucklee0/oci-arm-host-capacity/archive/refs/heads/main.tar.gz | tar -xz --strip-components=1
           fi
           
-          # PHP가 실패 코드(exit 1)를 던져도 워크플로우가 멈추지 않도록 || true를 붙입니다.
+          # 2. ⚠️ [핵심 추가] 릴리즈 파일 구동을 위해 필요한 라이브러리(vendor)를 설치합니다.
+          echo "📥 필요한 패키지(composer)를 설치합니다..."
+          composer install --no-dev --prefer-dist --no-progress
+          
+          # 3. 매크로 스크립트 실행 (실패 시에도 워크플로우가 멈추지 않도록 || true 설정)
           OUTPUT=$(php index.php 2>&1) || true
           echo "$OUTPUT"
           
-          # 출력 결과물에 실제 성공 식별자인 'ocid1.instance'가 있는지 정확히 판별합니다.
+          # 출력 결과물에 실제 성공 식별자인 'ocid1.instance'가 있는지 판별
           if [[ "$OUTPUT" == *"ocid1.instance"* ]]; then
             echo "INSTANCE_CREATED=true" >> $GITHUB_OUTPUT
           else
@@ -57,7 +59,6 @@ jobs:
           OCI_SSH_PUBLIC_KEY: ${{ secrets.OCI_SSH_PUBLIC_KEY }}
 
       - name: Send Telegram Notification
-        # 실제 인스턴스가 성공적으로 생성되었을 때만 실행됩니다.
         if: steps.run_script.outputs.INSTANCE_CREATED == 'true'
         env:
           TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
