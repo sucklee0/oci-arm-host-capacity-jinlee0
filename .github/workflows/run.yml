@@ -27,9 +27,11 @@ jobs:
       - name: Run Provisioning Script
         id: run_script
         run: |
-          # index.php 파일의 정확한 위치를 찾아 그 폴더로 이동 후 실행합니다.
-          TARGET_DIR=$(dirname $(find . -name "index.php" | head -n 1))
-          cd "$TARGET_DIR"
+          # 💡 [핵심] 파일이 없으면 기존 레포지토리(sucklee0/oci-arm-host-capacity)의 최신 소스코드를 다운로드해서 압축을 풉니다.
+          if [ ! -f "index.php" ]; then
+            echo "📦 기존 레포지토리에서 소스 코드를 원격으로 가져옵니다..."
+            curl -L https://github.com/sucklee0/oci-arm-host-capacity/archive/refs/heads/main.tar.gz | tar -xz --strip-components=1
+          fi
           
           # PHP가 실패 코드(exit 1)를 던져도 워크플로우가 멈추지 않도록 || true를 붙입니다.
           OUTPUT=$(php index.php 2>&1) || true
