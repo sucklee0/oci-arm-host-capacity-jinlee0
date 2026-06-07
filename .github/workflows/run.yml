@@ -29,12 +29,12 @@ jobs:
       - name: Run Provisioning Script
         id: run_script
         run: |
-          OUTPUT=$(php index.php)
+          # 💡 [핵심] 뒤에 || true를 붙여 PHP가 에러(exit 1)를 내도 깃허브 액션이 멈추지 않고 OUTPUT을 받아오게 합니다.
+          OUTPUT=$(php index.php 2>&1) || true
           echo "$OUTPUT"
           
-          # 1. 출력물에 확실한 에러/용량 부족 키워드가 포함되어 있는지 검사합니다.
-          # 2. 동시에 출력물에 'ocid1.instance'라는 진짜 식별자가 생성되었는지 이중 체크합니다.
-          if [[ "$OUTPUT" != *"Out of capacity"* ]] && [[ "$OUTPUT" != *"InternalError"* ]] && [[ "$OUTPUT" == *"ocid1.instance"* ]]; then
+          # 출력 결과물에 실제 성공 식별자인 'ocid1.instance'가 있는지 안전하게 판별합니다.
+          if [[ "$OUTPUT" == *"ocid1.instance"* ]]; then
             echo "INSTANCE_CREATED=true" >> $GITHUB_OUTPUT
           else
             echo "INSTANCE_CREATED=false" >> $GITHUB_OUTPUT
@@ -53,7 +53,7 @@ jobs:
           OCI_SSH_PUBLIC_KEY: ${{ secrets.OCI_SSH_PUBLIC_KEY }}
 
       - name: Send Telegram Notification
-        # 이전 step에서 최종 판단한 결과가 정확히 'true'일 때만 실행합니다.
+        # 실제 인스턴스가 생성되어 변수가 true일 때만 작동 (실패 시 실행 안 됨)
         if: steps.run_script.outputs.INSTANCE_CREATED == 'true'
         env:
           TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
