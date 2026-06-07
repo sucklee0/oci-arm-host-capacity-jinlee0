@@ -33,7 +33,9 @@ jobs:
         run: |
           OUTPUT=$(php index.php)
           echo "$OUTPUT"
-          if [[ "$OUTPUT" == *"Instance OCID"* ]]; then
+          
+          # 'Instance OCID' 대신, 실제 생성 시에만 발급되는 고유 ID 포맷(ocid1.instance)을 검사합니다.
+          if [[ "$OUTPUT" == *"ocid1.instance"* ]]; then
             echo "INSTANCE_CREATED=true" >> $GITHUB_OUTPUT
           else
             echo "INSTANCE_CREATED=false" >> $GITHUB_OUTPUT
