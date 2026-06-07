@@ -27,6 +27,10 @@ jobs:
       - name: Run Provisioning Script
         id: run_script
         run: |
+          # index.php 파일의 정확한 위치를 찾아 그 폴더로 이동 후 실행합니다.
+          TARGET_DIR=$(dirname $(find . -name "index.php" | head -n 1))
+          cd "$TARGET_DIR"
+          
           # PHP가 실패 코드(exit 1)를 던져도 워크플로우가 멈추지 않도록 || true를 붙입니다.
           OUTPUT=$(php index.php 2>&1) || true
           echo "$OUTPUT"
